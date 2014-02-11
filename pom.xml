@@ -17,7 +17,7 @@
         [2] http://semver.org/spec/v2.0.0.html
     </description>
 
-    <url>https://github.com/code-distillery</url>
+    <url>https://github.com/code-distillery/baselining-maven-plugin</url>
 
     <licenses>
         <license>
@@ -28,8 +28,9 @@
     </licenses>
 
     <scm>
-        <url></url>
-        <connection></connection>
+        <connection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</developerConnection>
+        <url>https://github.com/code-distillery/baselining-maven-plugin</url>
     </scm>
 
     <developers>
