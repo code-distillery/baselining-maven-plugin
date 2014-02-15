@@ -24,7 +24,7 @@ public class DummyApiTest {
             baseVerifier = createVerifier("dummy-1.0.0");
             baseVerifier.executeGoal("install");
             baseVerifier.verifyErrorFreeLog();
-            baseVerifier.verifyTextInLog("No baseline version found.");
+            baseVerifier.verifyTextInLog(BaselineMojo.MSG_NO_BASELINE);
         } catch (VerificationException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
@@ -47,7 +47,7 @@ public class DummyApiTest {
         final Verifier verifier = createVerifier("dummy-1.0.1-SNAPSHOT");
         verifier.executeGoal("package");
         verifier.verifyErrorFreeLog();
-        verifier.verifyTextInLog("Baselining against artifact version 1.0.0");
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
     }
 
     @Test
@@ -58,14 +58,14 @@ public class DummyApiTest {
         try {
             verifier.executeGoal("package");
         } catch (VerificationException e) {
-            // expected
+            // build failure expected
         }
-        verifier.verifyTextInLog("Baselining against artifact version 1.0.0");
-        verifier.verifyTextInLog("Suggested export for package: dummy;version=\"1.1.0\"");
-        verifier.verifyTextInLog("There were API changes, some package exports need to be adjusted");
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_RAISE_VERSION, "dummy", "1.1.0"));
         verifier.verifyTextInLog("BUILD FAILURE");
 
-        verifier.deleteArtifacts(GROUP_ID, "dummy-1.0.1-SNAPSHOT", "1.0.1-SNAPSHOT");
+        // cleanup installed artifacts
+        verifier.deleteArtifacts(GROUP_ID, "dummy", "1.0.1-SNAPSHOT");
     }
 
     private static Verifier createVerifier(final String testFolderName) throws IOException, VerificationException {

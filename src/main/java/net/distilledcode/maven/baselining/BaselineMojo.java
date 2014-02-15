@@ -24,10 +24,10 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
+import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectBaselineVersion;
 
 @Mojo(
         name = "baseline",
@@ -36,6 +36,12 @@ import java.util.Set;
         threadSafe = true
 )
 public class BaselineMojo extends AbstractMojo {
+
+    public static final String MSG_NO_BASELINE = "No baseline version found";
+
+    public static final String MSG_BASELINING = "Baselining against version %s";
+
+    public static final String MSG_RAISE_VERSION = "Please raise the version of package %s to %s";
 
     @Component
     private MavenProject project;
@@ -57,85 +63,57 @@ public class BaselineMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-
-        final Artifact artifact = project.getArtifact();
-        final ArtifactVersion artifactVersion;
         try {
-            final ArtifactVersion activeArtifactVersion = artifact.getSelectedVersion();
-            final List availableVersions = artifactMetadataSource
-                    .retrieveAvailableVersions(artifact, localRepository, remoteRepositories);
-
-            getLog().info("Artifact Metadata Source: " + artifactMetadataSource.toString() + " " + activeArtifactVersion.toString());
-
-            Collections.sort(availableVersions, Collections.reverseOrder());
-            final Iterator iterator = availableVersions.iterator();
-            while(iterator.hasNext()) {
-                final ArtifactVersion next = (ArtifactVersion)iterator.next();
-                if ("SNAPSHOT".equals(next.getQualifier()) || next.equals(activeArtifactVersion)) {
-                    iterator.remove();
-                }
-            }
-
-            if (availableVersions.isEmpty()) {
-                getLog().info("No baseline version found.");
-                return;
-            }
-
-            for (final Object version : availableVersions) {
-                getLog().info("Available artifact version: " + version.toString());
-            }
-
-
-            // TODO: make sure artifactVersions are not bigger than current
-            artifactVersion = (ArtifactVersion)availableVersions.get(0);
-
-        } catch (ArtifactMetadataRetrievalException e) {
-            throw new MojoExecutionException("Failed to retrieve available versions.", e);
-        } catch (OverConstrainedVersionException e) {
-            throw new MojoExecutionException("Problem with artifact version.", e);
-        }
-
-        final Artifact oldArtifact;
-        try {
-             oldArtifact = artifactFactory.createArtifact(
-                    artifact.getGroupId(),
-                    artifact.getArtifactId(),
-                    artifactVersion.toString(),
-                    "compile",
-                    "jar"
-            );
-            //getLog().info("Local repository: " + localRepository + " " + remoteRepositories.toString());
-            resolver.resolve(oldArtifact, remoteRepositories, localRepository);
-        } catch (ArtifactResolutionException e) {
-            throw new MojoExecutionException("Failed to resolve baseline artifact.", e);
-        } catch (ArtifactNotFoundException e) {
-            throw new MojoExecutionException("Baseline artifact not found.", e);
-        }
-
-        final File newJar = artifact.getFile();
-        final File oldJar = oldArtifact.getFile();
-        final StringBuilder suggestions;
-        try {
-            getLog().info("Baselining against artifact version " + artifactVersion);
-            final Set<Baseline.Info> baselineInfos = baseline(newJar, oldJar);
-            suggestions = new StringBuilder();
-            for (final Baseline.Info info : baselineInfos) {
-                if (!info.newerVersion.equals(info.suggestedVersion)) {
-                    final String msg = "Suggested export for package: " + info.packageName + ";version=\"" + info.suggestedVersion + "\"";
-                    suggestions.append(msg).append("\n");
-                    getLog().error(msg);
-                }
+            final Artifact artifact = project.getArtifact();
+            final ArtifactVersion baselineVersion = computeBaselineVersion(artifact);
+            if (baselineVersion == null) {
+                getLog().info(MSG_NO_BASELINE);
+            } else {
+                getLog().info(String.format(MSG_BASELINING, baselineVersion));
+                final Artifact baselineArtifact = resolveBaselineArtifact(artifact, baselineVersion);
+                final Set<Baseline.Info> baselineInfos = baseline(artifact.getFile(), baselineArtifact.getFile());
+                reportFindings(baselineInfos);
             }
         } catch (Exception e) {
-            throw new MojoExecutionException("Error while baselining.", e);
+            throw new MojoExecutionException("Unexpected exception during mojo execution", e);
+        }
+    }
+
+    private void reportFindings(Set<Baseline.Info> baselineInfos) throws MojoFailureException {
+        final StringBuilder report = new StringBuilder();
+        for (final Baseline.Info info : baselineInfos) {
+            if (!info.newerVersion.equals(info.suggestedVersion)) {
+                final String msg = String.format(MSG_RAISE_VERSION, info.packageName, info.suggestedVersion);
+                report.append(msg).append("\n");
+                getLog().error(msg);
+            }
         }
 
-        if (suggestions.length() > 0) {
+        if (report.length() > 0) {
             throw new MojoFailureException(
-                    "There were API changes, some package exports need to be adjusted.\n\n" +
-                            suggestions.toString()
+                    "There were API changes, please adjust the following exported package versions.\n\n" +
+                            report.toString()
             );
         }
+    }
+
+    private Artifact resolveBaselineArtifact(Artifact artifact, ArtifactVersion baselineVersion)
+            throws ArtifactNotFoundException, ArtifactResolutionException {
+        final Artifact baselineArtifact = artifactFactory.createArtifact(
+                artifact.getGroupId(),
+                artifact.getArtifactId(),
+                baselineVersion.toString(),
+                "compile",
+                "jar"
+        );
+        resolver.resolve(baselineArtifact, remoteRepositories, localRepository);
+        return baselineArtifact;
+    }
+
+    private ArtifactVersion computeBaselineVersion(Artifact artifact) throws ArtifactMetadataRetrievalException, OverConstrainedVersionException {
+        final ArtifactVersion currentVersion = artifact.getSelectedVersion();
+        final List<ArtifactVersion> availableVersions = getAvailableVersions(artifact);
+        return selectBaselineVersion(currentVersion, availableVersions);
     }
 
     private static Set<Baseline.Info> baseline(File newer, File older) throws Exception {
@@ -146,5 +124,13 @@ public class BaselineMojo extends AbstractMojo {
         return baseline.baseline(n, o, null);
         // for each package you have an info, detailing the findings
         // base version, new version, errors, suggested version, etc.
+    }
+
+    private List<ArtifactVersion> getAvailableVersions(final Artifact artifact)
+            throws ArtifactMetadataRetrievalException {
+        @SuppressWarnings("unchecked")
+        final List<ArtifactVersion> versions = (List<ArtifactVersion>) artifactMetadataSource
+                .retrieveAvailableVersions(artifact, localRepository, remoteRepositories);
+        return versions;
     }
 }
