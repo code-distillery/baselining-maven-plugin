@@ -127,53 +127,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>2.16</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                        <configuration>
-                            <encoding>UTF-8</encoding>
-                            <systemProperties>
-                                <maven.repo.local>target/local-repo</maven.repo.local>
-                            </systemProperties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            -->
-            <!--
-            <plugin>
-                <artifactId>maven-install-plugin</artifactId>
-                <version>2.5.1</version>
-                <executions>
-                    <execution>
-                        <id>install</id>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>install</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>install-to-test-repo</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <file>${project.build.directory}/${project.build.finalName}.jar</file>
-                            <localRepositoryPath>${test.local.repo}</localRepositoryPath>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            -->
         </plugins>
     </build>
 
