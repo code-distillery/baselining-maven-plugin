@@ -31,6 +31,7 @@
         <connection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</connection>
         <developerConnection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</developerConnection>
         <url>https://github.com/code-distillery/baselining-maven-plugin</url>
+        <tag>HEAD</tag>
     </scm>
 
     <developers>
