@@ -115,15 +115,16 @@
                 <version>2.16</version>
                 <executions>
                     <execution>
-                        <id>default-test</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
                         <id>integration-tests</id>
                         <phase>integration-test</phase>
                         <goals>
                             <goal>test</goal>
                         </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.class</include>
+                            </includes>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

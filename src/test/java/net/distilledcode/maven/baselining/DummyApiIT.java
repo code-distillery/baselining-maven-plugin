@@ -12,9 +12,11 @@ import java.io.IOException;
 
 import static java.util.Arrays.asList;
 
-public class DummyApiTest {
+public class DummyApiIT {
 
     private static final String GROUP_ID = "net.distilledcode.maven.baselining-maven-plugin.it";
+
+    private static final String MAVEN_REPO_LOCAL = "maven.repo.local";
 
     private static Verifier baseVerifier;
 
@@ -69,10 +71,20 @@ public class DummyApiTest {
     }
 
     private static Verifier createVerifier(final String testFolderName) throws IOException, VerificationException {
-        final File testDir = ResourceExtractor.simpleExtractResources(DummyApiTest.class, "/" + testFolderName);
+        final File testDir = ResourceExtractor.simpleExtractResources(DummyApiIT.class, "/" + testFolderName);
         final File settingsXml = new File(testDir.getParent(), "settings.xml");
+
+        // During release:prepare the system property maven.repo.local is set (probably
+        // for some forked process).
+        // Verifier gives precedence to the system property (correctly IMHO), rather than
+        // the setting in settings.xml, which results in an incorrect local repository
+        // during release:prepare and thus test failures. To work around this issue, we
+        // temporarily clear the system property during the creation of the Verifier instance.
+        final String originalLocalRepo = System.getProperty(MAVEN_REPO_LOCAL);
+        System.clearProperty(MAVEN_REPO_LOCAL);
         final Verifier verifier= new Verifier(testDir.getAbsolutePath(), settingsXml.getAbsolutePath());
         verifier.setCliOptions(asList("-s", settingsXml.getAbsolutePath()));
+        System.setProperty(MAVEN_REPO_LOCAL, originalLocalRepo);
         return verifier;
     }
 }
