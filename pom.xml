@@ -136,6 +136,7 @@
                 <version>2.4.2</version>
                 <configuration>
                     <tagNameFormat>v@{project.version}</tagNameFormat>
+                    <mavenExecutorId>forked-path</mavenExecutorId>
                 </configuration>
                 <dependencies>
                     <dependency>
