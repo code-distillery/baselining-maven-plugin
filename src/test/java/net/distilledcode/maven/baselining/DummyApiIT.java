@@ -84,7 +84,9 @@ public class DummyApiIT {
         System.clearProperty(MAVEN_REPO_LOCAL);
         final Verifier verifier= new Verifier(testDir.getAbsolutePath(), settingsXml.getAbsolutePath());
         verifier.setCliOptions(asList("-s", settingsXml.getAbsolutePath()));
-        System.setProperty(MAVEN_REPO_LOCAL, originalLocalRepo);
+        if (originalLocalRepo != null) {
+            System.setProperty(MAVEN_REPO_LOCAL, originalLocalRepo);
+        }
         return verifier;
     }
 }
