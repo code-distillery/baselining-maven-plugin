@@ -5,15 +5,18 @@ import aQute.bnd.differ.DiffPluginImpl;
 import aQute.bnd.osgi.Jar;
 import aQute.libg.reporter.ReporterAdapter;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.factory.ArtifactFactory;
+import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
 import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
 import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.artifact.resolver.ArtifactNotFoundException;
 import org.apache.maven.artifact.resolver.ArtifactResolutionException;
+import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
 import org.apache.maven.artifact.resolver.ArtifactResolver;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -22,6 +25,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import org.apache.maven.repository.RepositorySystem;
 
 import java.io.File;
 import java.util.List;
@@ -44,13 +48,16 @@ public class BaselineMojo extends AbstractMojo {
     public static final String MSG_RAISE_VERSION = "Please raise the version of package %s to %s";
 
     @Component
+    private MavenSession session;
+
+    @Component
     private MavenProject project;
 
     @Component
     private ArtifactResolver resolver;
 
     @Component
-    private ArtifactFactory artifactFactory;
+    private RepositorySystem repositorySystem;
 
     @Component
     private ArtifactMetadataSource artifactMetadataSource;
@@ -59,7 +66,7 @@ public class BaselineMojo extends AbstractMojo {
     private ArtifactRepository localRepository;
 
     @Parameter(defaultValue = "${project.remoteArtifactRepositories}", readonly = true)
-    private List remoteRepositories;
+    private List<ArtifactRepository> remoteRepositories;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -85,7 +92,7 @@ public class BaselineMojo extends AbstractMojo {
             if (!info.newerVersion.equals(info.suggestedVersion)) {
                 final String msg = String.format(MSG_RAISE_VERSION, info.packageName, info.suggestedVersion);
                 report.append(msg).append("\n");
-                getLog().error(msg);
+                getLog().warn(msg);
             }
         }
 
@@ -99,18 +106,28 @@ public class BaselineMojo extends AbstractMojo {
 
     private Artifact resolveBaselineArtifact(Artifact artifact, ArtifactVersion baselineVersion)
             throws ArtifactNotFoundException, ArtifactResolutionException {
-        final Artifact baselineArtifact = artifactFactory.createArtifact(
+        final Artifact baselineArtifact = repositorySystem.createArtifact(
                 artifact.getGroupId(),
                 artifact.getArtifactId(),
                 baselineVersion.toString(),
                 "compile",
                 "jar"
         );
-        resolver.resolve(baselineArtifact, remoteRepositories, localRepository);
+        resolveArtifact(baselineArtifact);
         return baselineArtifact;
     }
 
-    private ArtifactVersion computeBaselineVersion(Artifact artifact) throws ArtifactMetadataRetrievalException, OverConstrainedVersionException {
+    private void resolveArtifact(Artifact baselineArtifact) {
+        final ArtifactResolutionRequest request = new ArtifactResolutionRequest();
+        request.setArtifact(baselineArtifact);
+        request.setLocalRepository(localRepository);
+        request.setRemoteRepositories(remoteRepositories);
+        request.setOffline(session.isOffline());
+        repositorySystem.resolve(request);
+    }
+
+    private ArtifactVersion computeBaselineVersion(Artifact artifact)
+            throws ArtifactMetadataRetrievalException, OverConstrainedVersionException {
         final ArtifactVersion currentVersion = artifact.getSelectedVersion();
         final List<ArtifactVersion> availableVersions = getAvailableVersions(artifact);
         return selectBaselineVersion(currentVersion, availableVersions);
