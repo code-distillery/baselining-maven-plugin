@@ -145,9 +145,24 @@ public class BaselineMojo extends AbstractMojo {
 
     private List<ArtifactVersion> getAvailableVersions(final Artifact artifact)
             throws ArtifactMetadataRetrievalException {
-        @SuppressWarnings("unchecked")
-        final List<ArtifactVersion> versions = (List<ArtifactVersion>) artifactMetadataSource
-                .retrieveAvailableVersions(artifact, localRepository, remoteRepositories);
+        final Artifact nonSnapshotArtifact;
+        if (artifact.isSnapshot()) {
+            final String version = project.getVersion();
+            final int snapshotIdx = version.indexOf("-SNAPSHOT");
+            final String nonSnapshotVersion = version.substring(0, snapshotIdx);
+             nonSnapshotArtifact = repositorySystem.createArtifact(
+                    artifact.getGroupId(),
+                    artifact.getArtifactId(),
+                    nonSnapshotVersion,
+                    "compile",
+                    "jar"
+            );
+        } else {
+            nonSnapshotArtifact = artifact;
+        }
+
+        final List<ArtifactVersion> versions = artifactMetadataSource
+                .retrieveAvailableVersions(nonSnapshotArtifact, localRepository, remoteRepositories);
         return versions;
     }
 }
