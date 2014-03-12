@@ -62,6 +62,12 @@ public class BaselineMojo extends AbstractMojo {
     @Component
     private ArtifactMetadataSource artifactMetadataSource;
 
+    /**
+     * Whether or not to fail the build if exported version numbers need to be upgraded.
+     */
+    @Parameter(defaultValue = "true")
+    private boolean failOnError;
+
     @Parameter(defaultValue = "${localRepository}", readonly = true)
     private ArtifactRepository localRepository;
 
@@ -96,7 +102,7 @@ public class BaselineMojo extends AbstractMojo {
             }
         }
 
-        if (report.length() > 0) {
+        if (report.length() > 0 && failOnError) {
             throw new MojoFailureException(
                     "There were API changes, please adjust the following exported package versions.\n\n" +
                             report.toString()

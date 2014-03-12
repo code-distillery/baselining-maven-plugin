@@ -21,6 +21,10 @@ Configuration
                 </goals>
             </execution>
         </executions>
+        <configuration>
+            <!-- failOnError: default=true -->
+            <failOnError>false</failOnError>
+        </configuration>
     </plugin>
 
 
