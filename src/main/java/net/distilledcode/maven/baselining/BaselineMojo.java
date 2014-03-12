@@ -33,6 +33,11 @@ import java.util.Set;
 
 import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectBaselineVersion;
 
+/**
+ * Compares exported java packages of the current artifact with the latest available released
+ * version. If the semantics of exported java packages have changed, an incremented export
+ * version is suggested.
+ */
 @Mojo(
         name = "baseline",
         defaultPhase = LifecyclePhase.PACKAGE,
