@@ -12,7 +12,7 @@ Configuration
     <plugin>
         <groupId>net.distilledcode.maven</groupId>
         <artifactId>baselining-maven-plugin</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.2</version>
         <executions>
             <execution>
                 <id>baseline</id>
