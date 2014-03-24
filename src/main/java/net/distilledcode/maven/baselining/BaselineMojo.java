@@ -3,9 +3,9 @@ package net.distilledcode.maven.baselining;
 import aQute.bnd.differ.Baseline;
 import aQute.bnd.differ.DiffPluginImpl;
 import aQute.bnd.osgi.Jar;
+import aQute.bnd.service.diff.Diff;
 import aQute.libg.reporter.ReporterAdapter;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
 import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
 import org.apache.maven.artifact.repository.ArtifactRepository;
@@ -14,12 +14,12 @@ import org.apache.maven.artifact.resolver.ArtifactResolutionException;
 import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
 import org.apache.maven.artifact.resolver.ArtifactResolver;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -28,6 +28,7 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.repository.RepositorySystem;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -50,7 +51,9 @@ public class BaselineMojo extends AbstractMojo {
 
     public static final String MSG_BASELINING = "Baselining against version %s";
 
-    public static final String MSG_RAISE_VERSION = "Please raise the version of package %s to %s";
+    public static final String MSG_RAISE_VERSION = "Please raise the version of package %s to %s (old: %s -> new: %s)";
+
+    public static final String MSG_LOWER_VERSION = "Please lower the version of package %s to %s (old: %s -> new: %s)";
 
     @Component
     private MavenSession session;
@@ -68,10 +71,35 @@ public class BaselineMojo extends AbstractMojo {
     private ArtifactMetadataSource artifactMetadataSource;
 
     /**
-     * Whether or not to fail the build if exported version numbers need to be upgraded.
+     * Deprecated: Whether or not to fail the build if exported version numbers need to be upgraded.
+     *
+     * If {@code enforcement} is set to anything other than {@code lowerAndUpperBound} (the default),
+     * this option is ignored.
+     *
+     * @since 1.0.2
+     * @deprecated Superseded by {@code enforcement}. {@code lowerAndUpperBound} is equivalent
+     * to {@code failOnError=true}, {@code none} to failOnError=false.
      */
+    @Deprecated
     @Parameter(defaultValue = "true")
     private boolean failOnError;
+
+    /**
+     * The {@code enforcement} allows controlling when the build should fail. Valid values
+     * are:
+     * <li>
+     * lowerAndUpperBound (default): Enforce that export versions are incremented as required
+     * but are not set to a higher value. Fails the build otherwise.
+     * <li>
+     * lowerBound: Enforce that export versions are incremented as required, but allows
+     * increments that are higher than necessary. Fails the build otherwise.
+     * <li>
+     * none: The output is purely informational. Never fails the build.
+     *
+     * @since 1.0.4
+     */
+    @Parameter(defaultValue = "lowerAndUpperBound")
+    private Enforcement enforcement;
 
     @Parameter(defaultValue = "${localRepository}", readonly = true)
     private ArtifactRepository localRepository;
@@ -98,19 +126,44 @@ public class BaselineMojo extends AbstractMojo {
     }
 
     private void reportFindings(Set<Baseline.Info> baselineInfos) throws MojoFailureException {
-        final StringBuilder report = new StringBuilder();
+
+        // backwards compatibility for failOnError
+        if (enforcement == Enforcement.lowerAndUpperBound && !failOnError) {
+            enforcement = Enforcement.none;
+        }
+
+        final StringBuilder failureReport = new StringBuilder();
         for (final Baseline.Info info : baselineInfos) {
-            if (!info.newerVersion.equals(info.suggestedVersion)) {
-                final String msg = String.format(MSG_RAISE_VERSION, info.packageName, info.suggestedVersion);
-                report.append(msg).append("\n");
-                getLog().warn(msg);
+            final int comparison = info.newerVersion.compareTo(info.suggestedVersion);
+            if (comparison < 0) { // lower bound violation: newerVersion is less than suggestedVersion
+                final String msg = String.format(MSG_RAISE_VERSION, info.packageName, info.suggestedVersion, info.olderVersion, info.newerVersion);
+                switch (enforcement) {
+                    case lowerAndUpperBound:
+                    case lowerBound:
+                        failureReport.append(msg).append("\n");
+                        getLog().error(msg);
+                        break;
+                    case none:
+                        getLog().warn(msg);
+                }
+            } else if (comparison > 0) { // upper bound violation: newerVersion is greater than suggestedVersion
+                final String msg = String.format(MSG_LOWER_VERSION, info.packageName, info.suggestedVersion, info.olderVersion, info.newerVersion);
+                switch (enforcement) {
+                    case lowerAndUpperBound:
+                        failureReport.append(msg).append("\n");
+                        getLog().error(msg);
+                        break;
+                    case lowerBound:
+                    case none:
+                        getLog().warn(msg);
+                }
             }
         }
 
-        if (report.length() > 0 && failOnError) {
+        if (failureReport.length() > 0) {
             throw new MojoFailureException(
                     "There were API changes, please adjust the following exported package versions.\n\n" +
-                            report.toString()
+                            failureReport.toString()
             );
         }
     }
@@ -161,7 +214,7 @@ public class BaselineMojo extends AbstractMojo {
             final String version = project.getVersion();
             final int snapshotIdx = version.indexOf("-SNAPSHOT");
             final String nonSnapshotVersion = version.substring(0, snapshotIdx);
-             nonSnapshotArtifact = repositorySystem.createArtifact(
+            nonSnapshotArtifact = repositorySystem.createArtifact(
                     artifact.getGroupId(),
                     artifact.getArtifactId(),
                     nonSnapshotVersion,
@@ -175,5 +228,11 @@ public class BaselineMojo extends AbstractMojo {
         final List<ArtifactVersion> versions = artifactMetadataSource
                 .retrieveAvailableVersions(nonSnapshotArtifact, localRepository, remoteRepositories);
         return versions;
+    }
+
+    public static enum Enforcement {
+        lowerAndUpperBound,
+        lowerBound,
+        none
     }
 }

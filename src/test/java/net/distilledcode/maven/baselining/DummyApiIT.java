@@ -63,11 +63,24 @@ public class DummyApiIT {
             // build failure expected
         }
         verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
-        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_RAISE_VERSION, "dummy", "1.1.0"));
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_RAISE_VERSION, "dummy", "1.1.0", "1.0.0", "1.0.0"));
         verifier.verifyTextInLog("BUILD FAILURE");
 
         // cleanup installed artifacts
         verifier.deleteArtifacts(GROUP_ID, "dummy", "1.0.1-SNAPSHOT");
+    }
+
+    @Test
+    public void requireLowerExportVersion() throws IOException, VerificationException {
+        final Verifier verifier = createVerifier("dummy-1.0.2-require-lower-export");
+        try {
+            verifier.executeGoal("package");
+        } catch (VerificationException e) {
+            // build failure expected
+        }
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_LOWER_VERSION, "dummy", "1.1.0", "1.0.0", "2.0.0"));
+        verifier.verifyTextInLog("BUILD FAILURE");
     }
 
     private static Verifier createVerifier(final String testFolderName) throws IOException, VerificationException {
