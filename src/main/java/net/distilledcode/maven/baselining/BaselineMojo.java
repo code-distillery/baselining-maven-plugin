@@ -3,6 +3,8 @@ package net.distilledcode.maven.baselining;
 import aQute.bnd.differ.Baseline;
 import aQute.bnd.differ.DiffPluginImpl;
 import aQute.bnd.osgi.Jar;
+import aQute.bnd.service.diff.Delta;
+import aQute.bnd.service.diff.Diff;
 import aQute.libg.reporter.ReporterAdapter;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
@@ -18,6 +20,7 @@ import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -31,6 +34,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Stack;
 
 import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectBaselineVersion;
 
@@ -71,6 +77,12 @@ public class BaselineMojo extends AbstractMojo {
 
     @Component
     private ArtifactMetadataSource artifactMetadataSource;
+
+    /**
+     * Whether or not to explain why an export version needs to be raised.
+     */
+    @Parameter(property = "baselining.baseline.explain", defaultValue = "false")
+    private boolean explain;
 
     /**
      * Deprecated: Whether or not to fail the build if exported version numbers need to be upgraded.
@@ -138,6 +150,13 @@ public class BaselineMojo extends AbstractMojo {
                 getLog().info(String.format(MSG_BASELINING, baselineVersion));
                 final Artifact baselineArtifact = resolveBaselineArtifact(artifact, baselineVersion);
                 final Set<Baseline.Info> baselineInfos = baseline(artifact.getFile(), baselineArtifact.getFile());
+                final Iterator<Baseline.Info> iterator = baselineInfos.iterator();
+                while(iterator.hasNext()) {
+                    final Baseline.Info info = iterator.next();
+                    if (info.packageDiff.getDelta() == Delta.UNCHANGED) {
+                        iterator.remove();
+                    }
+                }
                 reportFindings(baselineInfos);
             }
         } catch(MojoFailureException e) {
@@ -148,6 +167,11 @@ public class BaselineMojo extends AbstractMojo {
     }
 
     private void reportFindings(Set<Baseline.Info> baselineInfos) throws MojoFailureException {
+
+        if (baselineInfos.size() == 0) {
+            getLog().info("No API changes found.");
+            return;
+        }
 
         // backwards compatibility for failOnError
         if (enforcement == Enforcement.lowerAndUpperBound && !failOnError) {
@@ -180,6 +204,10 @@ public class BaselineMojo extends AbstractMojo {
                         getLog().warn(msg);
                 }
             }
+
+            if (comparison != 0 && explain) {
+                explain(getLog(), info.packageDiff, new Stack<Diff>());
+            }
         }
 
         if (failureReport.length() > 0) {
@@ -187,6 +215,115 @@ public class BaselineMojo extends AbstractMojo {
                     "There were API changes, please adjust the following exported package versions.\n\n" +
                             failureReport.toString()
             );
+        }
+    }
+
+    private static void explain(Log log, Diff diff, Stack<Diff> ancestorDiffs) {
+        ancestorDiffs.push(diff);
+        switch (diff.getDelta()) {
+            case ADDED:
+            case REMOVED:
+                switch (diff.getType()) {
+                    case VERSION:
+                        // ignore changes for these
+                        break;
+                    default:
+                        final String prefix = diff.getDelta() == Delta.ADDED ? "   + " : "   - ";
+                        log.info(prefix + ancestorsToString(ancestorDiffs));
+                        break;
+                }
+                break;
+            case CHANGED:
+            case MAJOR:
+            case MINOR:
+            case MICRO:
+                final Collection<? extends Diff> children = diff.getChildren();
+                for (final Diff childDiff : children) {
+                    explain(log, childDiff, ancestorDiffs);
+                }
+                break;
+            case UNCHANGED:
+            default:
+                // do nothing
+                break;
+        }
+        ancestorDiffs.pop();
+    }
+
+    private static String ancestorsToString(Stack<Diff> ancestorDiffs) {
+        final StringBuilder sb = new StringBuilder();
+        final String description = ancestorDiffs.peek().getType().toString().toLowerCase();
+        final String packageName = ancestorDiffs.get(0).getName();
+        sb.append(description).append(" ");
+        for (final Diff diff : ancestorDiffs) {
+            switch (diff.getType()) {
+                case EXTENDS:
+                case IMPLEMENTS:
+                    sb.replace(0, description.length(), "inheritance");
+                    sb.append(" ").append(description).append(" ");
+                    sb.append(fqnToAbbreviatedClassName(diff.getName(), packageName));
+                    break;
+                case CLASS:
+                case ENUM:
+                case INTERFACE:
+                    sb.append(fqnToAbbreviatedClassName(diff.getName(), packageName));
+                    break;
+                case CONSTANT:
+                case FIELD:
+                    sb.append("#").append(diff.getName());
+                    break;
+                case METHOD:
+                    sb.append("#").append(abbreviateMethodArguments(diff.getName(), packageName));
+                    break;
+                case ANNOTATED:
+                    sb.append(" with ").append(diff.getName());
+                    break;
+                case PROPERTY:
+                    sb.insert(0, "annotation-");
+                    sb.append("(").append(diff.getName()).append(")");
+                    break;
+                case VERSION:
+                    break;
+                case RETURN:
+                    sb.insert(description.length(), fqnToAbbreviatedClassName(diff.getName(), packageName) + " from");
+                    break;
+                case ACCESS:
+                    sb.insert(description.length(), diff.getName() + " of");
+                    break;
+                case PACKAGE:
+                    if (ancestorDiffs.size() == 1) {
+                        sb.append(diff.getName());
+                    }
+                    break;
+                case ANNOTATION:
+                default:
+                    sb.append(" *** ");
+                    sb.append(diff.getName());
+                    break;
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String abbreviateMethodArguments(String methodSignature, String packageName) {
+        final int open = methodSignature.indexOf("(");
+        final int close = methodSignature.indexOf(")");
+        final String argumentString = methodSignature.substring(open + 1, close);
+        final String[] arguments = argumentString.split(",");
+        final StringBuilder sb = new StringBuilder(methodSignature.substring(0, open + 1));
+        for (final String arg : arguments) {
+            sb.append(fqnToAbbreviatedClassName(arg, packageName)).append(",");
+        }
+        sb.setLength(sb.length() - 1); // strip off trailing comma
+        sb.append(methodSignature.substring(close, methodSignature.length()));
+        return  sb.toString();
+    }
+
+    private static String fqnToAbbreviatedClassName(final String className, String packageName) {
+        if (className.startsWith(packageName)) {
+            return className.substring(packageName.length() + 1);
+        } else {
+            return className;
         }
     }
 
