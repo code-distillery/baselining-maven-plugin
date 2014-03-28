@@ -95,7 +95,7 @@ public class BaselineMojo extends AbstractMojo {
      *
      * @since 1.0.4
      */
-    @Parameter(defaultValue = "lowerAndUpperBound")
+    @Parameter(property = "baselining.baseline.enforcement", defaultValue = "lowerAndUpperBound")
     private Enforcement enforcement;
 
     @Parameter(defaultValue = "${localRepository}", readonly = true)
