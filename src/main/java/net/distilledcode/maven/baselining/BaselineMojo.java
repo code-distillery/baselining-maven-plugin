@@ -120,6 +120,8 @@ public class BaselineMojo extends AbstractMojo {
                 final Set<Baseline.Info> baselineInfos = baseline(artifact.getFile(), baselineArtifact.getFile());
                 reportFindings(baselineInfos);
             }
+        } catch(MojoFailureException e) {
+            throw e; // rethrow MojoFailureException as that can be a desired outcome
         } catch (Exception e) {
             throw new MojoExecutionException("Unexpected exception during mojo execution", e);
         }
