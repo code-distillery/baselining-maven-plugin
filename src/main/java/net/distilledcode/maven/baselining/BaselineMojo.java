@@ -5,6 +5,7 @@ import aQute.bnd.differ.DiffPluginImpl;
 import aQute.bnd.osgi.Jar;
 import aQute.bnd.service.diff.Diff;
 import aQute.libg.reporter.ReporterAdapter;
+
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
 import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
@@ -29,6 +30,7 @@ import org.apache.maven.repository.RepositorySystem;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -85,15 +87,24 @@ public class BaselineMojo extends AbstractMojo {
     private boolean failOnError;
 
     /**
-     * The {@code enforcement} allows controlling when the build should fail. Valid values
-     * are:
-     * <li>
-     * lowerAndUpperBound (default): Enforce that export versions are incremented as required
-     * but are not set to a higher value. Fails the build otherwise.
-     * <li>
-     * lowerBound: Enforce that export versions are incremented as required, but allows
-     * increments that are higher than necessary. Fails the build otherwise.
-     * <li>
+     * If set to true the plugin execution will be skipped, useful in
+     * multi-module projects to override the execution on a child module, when
+     * instead was enabled in the parent pom
+     *
+     * @since 1.0.3
+     */
+    @Parameter(defaultValue = "false")
+    private boolean skip;
+
+    /**
+     * The {@code enforcement} allows controlling when the build should fail.
+     * Valid values are: <li>
+     * lowerAndUpperBound (default): Enforce that export versions are
+     * incremented as required but are not set to a higher value. Fails the
+     * build otherwise. <li>
+     * lowerBound: Enforce that export versions are incremented as required, but
+     * allows increments that are higher than necessary. Fails the build
+     * otherwise. <li>
      * none: The output is purely informational. Never fails the build.
      *
      * @since 1.0.4
@@ -109,6 +120,10 @@ public class BaselineMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        if (skip) {
+            getLog().info("Execution skipped!");
+            return;
+        }
         try {
             final Artifact artifact = project.getArtifact();
             final ArtifactVersion baselineVersion = computeBaselineVersion(artifact);
@@ -197,7 +212,11 @@ public class BaselineMojo extends AbstractMojo {
         return selectBaselineVersion(currentVersion, availableVersions);
     }
 
-    private static Set<Baseline.Info> baseline(File newer, File older) throws Exception {
+    private Set<Baseline.Info> baseline(File newer, File older) throws Exception {
+        if (newer == null || older == null) {
+            getLog().info("The artifact doesn't have a JAR file associated so silently skipping it");
+            return new HashSet<Baseline.Info>();
+        }
         Baseline baseline = new Baseline(new ReporterAdapter(), new DiffPluginImpl());
         Jar n = new Jar(newer);
         Jar o = new Jar(older);
