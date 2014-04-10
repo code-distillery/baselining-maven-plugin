@@ -26,8 +26,11 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.repository.RepositorySystem;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectBaselineVersion;
 
@@ -43,6 +46,8 @@ import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectB
         threadSafe = true
 )
 public class BaselineMojo extends AbstractMojo {
+
+    public static final String BUNDLE_SYMBOLIC_NAME = "Bundle-SymbolicName";
 
     public static final String MSG_NO_BASELINE = "No baseline version found";
 
@@ -98,6 +103,14 @@ public class BaselineMojo extends AbstractMojo {
     @Parameter(property = "baselining.baseline.enforcement", defaultValue = "lowerAndUpperBound")
     private Enforcement enforcement;
 
+    /*
+     * If set to true the plugin execution will be skipped.
+     *
+     * @since 1.0.4
+     */
+    @Parameter(property = "baselining.baseline.skip", defaultValue = "false")
+    private boolean skip;
+
     @Parameter(defaultValue = "${localRepository}", readonly = true)
     private ArtifactRepository localRepository;
 
@@ -106,8 +119,18 @@ public class BaselineMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        final Artifact artifact = project.getArtifact();
+
+        if (skip) {
+            getLog().debug("Execution skipped via property \"baselining.baseline.skip\"");
+            return;
+        }
+        if (isBundle(artifact.getFile())) {
+            getLog().debug("Execution skipped, artifact is not a jar file.");
+            return;
+        }
+
         try {
-            final Artifact artifact = project.getArtifact();
             final ArtifactVersion baselineVersion = computeBaselineVersion(artifact);
             if (baselineVersion == null) {
                 getLog().info(MSG_NO_BASELINE);
@@ -197,13 +220,10 @@ public class BaselineMojo extends AbstractMojo {
     }
 
     private static Set<Baseline.Info> baseline(File newer, File older) throws Exception {
-        Baseline baseline = new Baseline(new ReporterAdapter(), new DiffPluginImpl());
-        Jar n = new Jar(newer);
-        Jar o = new Jar(older);
-
+        final Baseline baseline = new Baseline(new ReporterAdapter(), new DiffPluginImpl());
+        final Jar n = new Jar(newer);
+        final Jar o = new Jar(older);
         return baseline.baseline(n, o, null);
-        // for each package you have an info, detailing the findings
-        // base version, new version, errors, suggested version, etc.
     }
 
     private List<ArtifactVersion> getAvailableVersions(final Artifact artifact)
@@ -227,6 +247,37 @@ public class BaselineMojo extends AbstractMojo {
         final List<ArtifactVersion> versions = artifactMetadataSource
                 .retrieveAvailableVersions(nonSnapshotArtifact, localRepository, remoteRepositories);
         return versions;
+    }
+
+    private boolean isBundle(final File artifactFile) {
+        if (!artifactFile.getName().endsWith(".jar") || !artifactFile.exists()) {
+            return false;
+        }
+        final Manifest manifest = loadManifest(artifactFile);
+        if (manifest == null) {
+            return false;
+        }
+        final String symbolicName = (String) manifest.getMainAttributes().get(BUNDLE_SYMBOLIC_NAME);
+        return symbolicName != null;
+    }
+
+    private Manifest loadManifest(final File artifactFile) {
+        JarFile jarFile = null;
+        try {
+            jarFile = new JarFile(artifactFile, false, JarFile.OPEN_READ);
+            return jarFile.getManifest();
+        } catch (IOException ioe) {
+            getLog().error("Error reading JAR manifest:", ioe);
+            return null;
+        } finally {
+            if (jarFile != null) {
+                try {
+                    jarFile.close();
+                } catch (IOException ignore) {
+                    // ignore
+                }
+            }
+        }
     }
 
     public static enum Enforcement {
