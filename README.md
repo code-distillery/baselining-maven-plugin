@@ -12,7 +12,7 @@ Configuration
     <plugin>
         <groupId>net.distilledcode.maven</groupId>
         <artifactId>baselining-maven-plugin</artifactId>
-        <version>1.0.2</version>
+        <version>1.0.4</version>
         <executions>
             <execution>
                 <id>baseline</id>
@@ -22,8 +22,11 @@ Configuration
             </execution>
         </executions>
         <configuration>
-            <!-- failOnError: default=true -->
-            <failOnError>false</failOnError>
+            <!-- default:lowerAndUpperBound, options:lowerAndUpperBound,lowerBound,none -->
+            <enforcement>none</enforcement>
+
+            <!-- default:false -->
+            <skip>false</skip>
         </configuration>
     </plugin>
 
