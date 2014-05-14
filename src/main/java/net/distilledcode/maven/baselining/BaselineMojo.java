@@ -31,6 +31,7 @@ import org.apache.maven.repository.RepositorySystem;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -228,8 +229,15 @@ public class BaselineMojo extends AbstractMojo {
                         // ignore changes for these
                         break;
                     default:
-                        final String prefix = diff.getDelta() == Delta.ADDED ? "   + " : "   - ";
-                        log.info(prefix + ancestorsToString(ancestorDiffs));
+                        final boolean added = diff.getDelta() == Delta.ADDED;
+                        final Delta severity;
+                        if (added) {
+                            severity = diff.getNewer().ifAdded();
+                        } else {
+                            severity = diff.getOlder().ifRemoved();
+                        }
+                        final String prefix = added ? "  added " :"removed ";
+                        log.info(severity.toString().toLowerCase(Locale.US) + ": " + prefix + ancestorsToString(ancestorDiffs));
                         break;
                 }
                 break;
