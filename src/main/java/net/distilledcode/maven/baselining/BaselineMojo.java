@@ -293,7 +293,7 @@ public class BaselineMojo extends AbstractMojo {
                 case VERSION:
                     break;
                 case RETURN:
-                    sb.insert(description.length(), fqnToAbbreviatedClassName(diff.getName(), packageName) + " from");
+                    sb.insert(description.length() + 1, fqnToAbbreviatedClassName(diff.getName(), packageName) + " from ");
                     break;
                 case ACCESS:
                     sb.insert(description.length(), diff.getName() + " of");
