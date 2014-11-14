@@ -1,6 +1,8 @@
 baselining-maven-plugin
 =======================
 
+*NOTE: The maven-bundle-plugin of the Apache Felix project supports baselining as of version 2.5.0. Therfore development on this plugin was discontinued.*
+
 Maven plugin leveraging [bnd's baselining feature][baselining].
 The plugin automatically checks an OSGi bundle's package export
 versions need to be incremented, in accordance with
