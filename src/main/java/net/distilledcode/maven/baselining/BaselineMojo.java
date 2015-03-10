@@ -138,8 +138,8 @@ public class BaselineMojo extends AbstractMojo {
             getLog().debug("Execution skipped via property \"baselining.baseline.skip\"");
             return;
         }
-        if (isBundle(artifact.getFile())) {
-            getLog().debug("Execution skipped, artifact is not a jar file.");
+        if (!isBundle(artifact.getFile())) {
+            getLog().debug("Execution skipped, artifact is not a bundle.");
             return;
         }
 
@@ -395,14 +395,14 @@ public class BaselineMojo extends AbstractMojo {
     }
 
     private boolean isBundle(final File artifactFile) {
-        if (!artifactFile.getName().endsWith(".jar") || !artifactFile.exists()) {
+        if (artifactFile == null || !artifactFile.getName().endsWith(".jar") || !artifactFile.exists()) {
             return false;
         }
         final Manifest manifest = loadManifest(artifactFile);
         if (manifest == null) {
             return false;
         }
-        final String symbolicName = (String) manifest.getMainAttributes().get(BUNDLE_SYMBOLIC_NAME);
+        final String symbolicName = manifest.getMainAttributes().getValue(BUNDLE_SYMBOLIC_NAME);
         return symbolicName != null;
     }
 
