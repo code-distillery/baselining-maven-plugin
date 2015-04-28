@@ -83,6 +83,33 @@ public class DummyApiIT {
         verifier.verifyTextInLog("BUILD FAILURE");
     }
 
+    @Test
+    public void breakingChange() throws IOException, VerificationException {
+        final Verifier verifier = createVerifier("dummy-1.0.2-breaking-change");
+        try {
+            verifier.executeGoal("package");
+        } catch (VerificationException e) {
+            // build failure expected
+        }
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_RAISE_VERSION, "dummy", "2.0.0", "1.0.0", "1.0.0"));
+        verifier.verifyTextInLog("BUILD FAILURE");
+    }
+
+    @Test
+    public void enforceBundleVersion() throws IOException, VerificationException {
+        final Verifier verifier = createVerifier("dummy-1.0.2-wrong-bundle-version");
+        verifier.setSystemProperty("baselining.baseline.enforcebundleversion", "true");
+        try {
+            verifier.executeGoal("package");
+        } catch (VerificationException e) {
+            // build failure expected
+        }
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
+        verifier.verifyTextInLog(String.format(BaselineMojo.MSG_RAISE_BUNDLE_VERSION, "2.0.0", "1.0.0", "1.0.2"));
+        verifier.verifyTextInLog("BUILD FAILURE");
+    }
+
     private static Verifier createVerifier(final String testFolderName) throws IOException, VerificationException {
         final File testDir = ResourceExtractor.simpleExtractResources(DummyApiIT.class, "/" + testFolderName);
         final File settingsXml = new File(testDir.getParent(), "settings.xml");
