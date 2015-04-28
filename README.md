@@ -29,6 +29,9 @@ Configuration
 
             <!-- default:false -->
             <skip>false</skip>
+            
+            <!-- default:false -->
+            <enforceBundleVersion>false</enforceBundleVersion>
         </configuration>
     </plugin>
 
