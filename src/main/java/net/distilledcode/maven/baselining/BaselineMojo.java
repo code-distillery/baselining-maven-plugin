@@ -1,11 +1,14 @@
 package net.distilledcode.maven.baselining;
 
+import aQute.bnd.version.Version;
 import aQute.bnd.differ.Baseline;
+import aQute.bnd.differ.Baseline.Info;
 import aQute.bnd.differ.DiffPluginImpl;
 import aQute.bnd.osgi.Jar;
 import aQute.bnd.service.diff.Delta;
 import aQute.bnd.service.diff.Diff;
 import aQute.libg.reporter.ReporterAdapter;
+
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
 import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
@@ -64,6 +67,8 @@ public class BaselineMojo extends AbstractMojo {
 
     public static final String MSG_LOWER_VERSION = "Please lower the version of package %s to %s (old: %s -> new: %s)";
 
+    public static final String MSG_RAISE_BUNDLE_VERSION = "Please raise the bundle version to %s (old: %s -> new: %s)";
+
     @Component
     private MavenSession session;
 
@@ -115,6 +120,15 @@ public class BaselineMojo extends AbstractMojo {
      */
     @Parameter(property = "baselining.baseline.enforcement", defaultValue = "lowerAndUpperBound")
     private Enforcement enforcement;
+    
+    /**
+     * Setting the {@code enforceBundleVersion} allows controlling if the build should fail if 
+     * the new bundle version does not match the suggested bundle version.
+     * 
+     * @since 1.0.7
+     */
+    @Parameter(property = "baselining.baseline.enforcebundleversion", defaultValue = "false")
+    private boolean enforceBundleVersion;
 
     /*
      * If set to true the plugin execution will be skipped.
@@ -150,15 +164,15 @@ public class BaselineMojo extends AbstractMojo {
             } else {
                 getLog().info(String.format(MSG_BASELINING, baselineVersion));
                 final Artifact baselineArtifact = resolveBaselineArtifact(artifact, baselineVersion);
-                final Set<Baseline.Info> baselineInfos = baseline(artifact.getFile(), baselineArtifact.getFile());
-                final Iterator<Baseline.Info> iterator = baselineInfos.iterator();
+                final Baseline baseline = baseline(artifact.getFile(), baselineArtifact.getFile());
+                final Iterator<Baseline.Info> iterator = baseline.getPackageInfos().iterator();
                 while(iterator.hasNext()) {
                     final Baseline.Info info = iterator.next();
                     if (info.packageDiff.getDelta() == Delta.UNCHANGED) {
                         iterator.remove();
                     }
                 }
-                reportFindings(baselineInfos);
+                reportFindings(baseline);
             }
         } catch(MojoFailureException e) {
             throw e; // rethrow MojoFailureException as that can be a desired outcome
@@ -167,8 +181,9 @@ public class BaselineMojo extends AbstractMojo {
         }
     }
 
-    private void reportFindings(Set<Baseline.Info> baselineInfos) throws MojoFailureException {
-
+    private void reportFindings(Baseline baseline) throws MojoFailureException {
+    	
+    	Set<Info> baselineInfos = baseline.getPackageInfos();
         if (baselineInfos.size() == 0) {
             getLog().info("No API changes found.");
             return;
@@ -210,7 +225,26 @@ public class BaselineMojo extends AbstractMojo {
                 explain(getLog(), info.packageDiff, new Stack<Diff>());
             }
         }
-
+        
+        if (enforceBundleVersion)
+        {
+	        Version suggestedBundleVersion = baseline.getSuggestedVersion();
+	        Version newerBundleVersion = baseline.getNewerVersion();
+	        final int comparison = newerBundleVersion.compareTo(suggestedBundleVersion);
+	        
+	        if (comparison < 0) { // lower bound violation: newerVersion is less than suggestedVersion
+	            final String msg = String.format(MSG_RAISE_BUNDLE_VERSION, suggestedBundleVersion, baseline.getOlderVersion(), newerBundleVersion);
+	            switch (enforcement) {
+	                case lowerAndUpperBound:
+	                case lowerBound:
+	                    failureReport.append(msg).append("\n");
+	                    getLog().error(msg);
+	                    break;
+	                case none:
+	                    getLog().warn(msg);
+	            }
+	        } 
+        }
         if (failureReport.length() > 0) {
             throw new MojoFailureException(
                     "There were API changes, please adjust the following exported package versions.\n\n" +
@@ -364,11 +398,13 @@ public class BaselineMojo extends AbstractMojo {
         return selectBaselineVersion(currentVersion, availableVersions);
     }
 
-    private static Set<Baseline.Info> baseline(File newer, File older) throws Exception {
+    private Baseline baseline(File newer, File older) throws Exception {
         final Baseline baseline = new Baseline(new ReporterAdapter(), new DiffPluginImpl());
         final Jar n = new Jar(newer);
         final Jar o = new Jar(older);
-        return baseline.baseline(n, o, null);
+        baseline.baseline(n, o, null);
+        
+        return baseline;
     }
 
     private List<ArtifactVersion> getAvailableVersions(final Artifact artifact)
