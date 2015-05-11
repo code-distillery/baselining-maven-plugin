@@ -127,7 +127,7 @@ public class BaselineMojo extends AbstractMojo {
      * 
      * @since 1.0.7
      */
-    @Parameter(property = "baselining.baseline.enforcebundleversion", defaultValue = "false")
+    @Parameter(property = "baselining.baseline.enforceBundleVersion", defaultValue = "false")
     private boolean enforceBundleVersion;
 
     /*
@@ -182,8 +182,8 @@ public class BaselineMojo extends AbstractMojo {
     }
 
     private void reportFindings(Baseline baseline) throws MojoFailureException {
-    	
-    	Set<Info> baselineInfos = baseline.getPackageInfos();
+
+        Set<Info> baselineInfos = baseline.getPackageInfos();
         if (baselineInfos.size() == 0) {
             getLog().info("No API changes found.");
             return;
@@ -226,24 +226,23 @@ public class BaselineMojo extends AbstractMojo {
             }
         }
         
-        if (enforceBundleVersion)
-        {
-	        Version suggestedBundleVersion = baseline.getSuggestedVersion();
-	        Version newerBundleVersion = baseline.getNewerVersion();
-	        final int comparison = newerBundleVersion.compareTo(suggestedBundleVersion);
-	        
-	        if (comparison < 0) { // lower bound violation: newerVersion is less than suggestedVersion
-	            final String msg = String.format(MSG_RAISE_BUNDLE_VERSION, suggestedBundleVersion, baseline.getOlderVersion(), newerBundleVersion);
-	            switch (enforcement) {
-	                case lowerAndUpperBound:
-	                case lowerBound:
-	                    failureReport.append(msg).append("\n");
-	                    getLog().error(msg);
-	                    break;
-	                case none:
-	                    getLog().warn(msg);
-	            }
-	        } 
+        if (enforceBundleVersion) {
+            Version suggestedBundleVersion = baseline.getSuggestedVersion();
+            Version newerBundleVersion = baseline.getNewerVersion();
+            final int comparison = newerBundleVersion.compareTo(suggestedBundleVersion);
+
+            if (comparison < 0) { // lower bound violation: newerVersion is less than suggestedVersion
+                final String msg = String.format(MSG_RAISE_BUNDLE_VERSION, suggestedBundleVersion, baseline.getOlderVersion(), newerBundleVersion);
+                switch (enforcement) {
+                    case lowerAndUpperBound:
+                    case lowerBound:
+                        failureReport.append(msg).append("\n");
+                        getLog().error(msg);
+                        break;
+                    case none:
+                        getLog().warn(msg);
+                }
+            }
         }
         if (failureReport.length() > 0) {
             throw new MojoFailureException(
@@ -403,7 +402,7 @@ public class BaselineMojo extends AbstractMojo {
         final Jar n = new Jar(newer);
         final Jar o = new Jar(older);
         baseline.baseline(n, o, null);
-        
+
         return baseline;
     }
 
