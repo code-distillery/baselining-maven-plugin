@@ -125,7 +125,7 @@ public class BaselineMojo extends AbstractMojo {
      * Setting the {@code enforceBundleVersion} allows controlling if the build should fail if 
      * the new bundle version does not match the suggested bundle version.
      * 
-     * @since 1.0.7
+     * @since 1.0.8
      */
     @Parameter(property = "baselining.baseline.enforceBundleVersion", defaultValue = "false")
     private boolean enforceBundleVersion;
