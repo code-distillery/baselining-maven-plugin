@@ -99,7 +99,7 @@ public class DummyApiIT {
     @Test
     public void enforceBundleVersion() throws IOException, VerificationException {
         final Verifier verifier = createVerifier("dummy-1.0.2-wrong-bundle-version");
-        verifier.setSystemProperty("baselining.baseline.enforcebundleversion", "true");
+        verifier.setSystemProperty("baselining.baseline.enforceBundleVersion", "true");
         try {
             verifier.executeGoal("package");
         } catch (VerificationException e) {
