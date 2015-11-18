@@ -196,6 +196,11 @@ public class BaselineMojo extends AbstractMojo {
 
         final StringBuilder failureReport = new StringBuilder();
         for (final Baseline.Info info : baselineInfos) {
+            if (info.suggestedVersion == null)
+            {
+                // was removed
+                continue;
+            }
             final int comparison = info.newerVersion.compareTo(info.suggestedVersion);
             if (comparison < 0) { // lower bound violation: newerVersion is less than suggestedVersion
                 final String msg = String.format(MSG_RAISE_VERSION, info.packageName, info.suggestedVersion, info.olderVersion, info.newerVersion);
