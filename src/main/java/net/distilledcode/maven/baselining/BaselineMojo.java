@@ -51,7 +51,7 @@ import static net.distilledcode.maven.baselining.BaselineVersionSelector.selectB
  */
 @Mojo(
         name = "baseline",
-        defaultPhase = LifecyclePhase.PACKAGE,
+        defaultPhase = LifecyclePhase.VERIFY,
         requiresProject = true,
         threadSafe = true
 )

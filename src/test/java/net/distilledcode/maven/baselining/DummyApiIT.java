@@ -18,6 +18,8 @@ public class DummyApiIT {
 
     private static final String MAVEN_REPO_LOCAL = "maven.repo.local";
 
+    private static final String DEFAULT_GOAL = "verify";
+
     private static Verifier baseVerifier;
 
     @BeforeClass
@@ -47,7 +49,7 @@ public class DummyApiIT {
     @Test
     public void noApiChanges() throws IOException, VerificationException {
         final Verifier verifier = createVerifier("dummy-1.0.1-SNAPSHOT");
-        verifier.executeGoal("package");
+        verifier.executeGoal(DEFAULT_GOAL);
         verifier.verifyErrorFreeLog();
         verifier.verifyTextInLog(String.format(BaselineMojo.MSG_BASELINING, "1.0.0"));
     }
@@ -58,7 +60,7 @@ public class DummyApiIT {
         verifier0.executeGoal("install");
         final Verifier verifier = createVerifier("dummy-1.0.2");
         try {
-            verifier.executeGoal("package");
+            verifier.executeGoal(DEFAULT_GOAL);
         } catch (VerificationException e) {
             // build failure expected
         }
@@ -74,7 +76,7 @@ public class DummyApiIT {
     public void requireLowerExportVersion() throws IOException, VerificationException {
         final Verifier verifier = createVerifier("dummy-1.0.2-require-lower-export");
         try {
-            verifier.executeGoal("package");
+            verifier.executeGoal(DEFAULT_GOAL);
         } catch (VerificationException e) {
             // build failure expected
         }
@@ -87,7 +89,7 @@ public class DummyApiIT {
     public void breakingChange() throws IOException, VerificationException {
         final Verifier verifier = createVerifier("dummy-1.0.2-breaking-change");
         try {
-            verifier.executeGoal("package");
+            verifier.executeGoal(DEFAULT_GOAL);
         } catch (VerificationException e) {
             // build failure expected
         }
@@ -101,7 +103,7 @@ public class DummyApiIT {
         final Verifier verifier = createVerifier("dummy-1.0.2-wrong-bundle-version");
         verifier.setSystemProperty("baselining.baseline.enforceBundleVersion", "true");
         try {
-            verifier.executeGoal("package");
+            verifier.executeGoal(DEFAULT_GOAL);
         } catch (VerificationException e) {
             // build failure expected
         }
