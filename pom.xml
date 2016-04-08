@@ -3,7 +3,7 @@
 
     <groupId>net.distilledcode.maven</groupId>
     <artifactId>baselining-maven-plugin</artifactId>
-    <version>1.0.9-SNAPSHOT</version>
+    <version>1.1.0</version>
     <packaging>maven-plugin</packaging>
 
     <name>Baselining Maven Plugin</name>
@@ -31,7 +31,7 @@
         <connection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</connection>
         <developerConnection>scm:git:git@github.com:code-distillery/baselining-maven-plugin.git</developerConnection>
         <url>https://github.com/code-distillery/baselining-maven-plugin</url>
-        <tag>HEAD</tag>
+        <tag>v1.1.0</tag>
     </scm>
 
     <developers>
